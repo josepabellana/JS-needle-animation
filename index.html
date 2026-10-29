@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stitch Loader</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #F8F5EF; }
+    #loader { width: 100vw; height: 100vh; position: relative; overflow: hidden; contain: strict; }
+    #loader svg { display: block; width: 100%; height: 100%; }
+  </style>
+</head>
+<body>
+  <div id="loader" role="status" aria-label="Loading">
+    <svg id="svg" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+
+        <!-- Cloth weave texture -->
+        <linearGradient id="bead" x1="0" y1="0" x2="0.15" y2="1">
+          <stop offset="0"    stop-color="#f2ece0"/>
+          <stop offset="0.45" stop-color="#e9e2d4"/>
+          <stop offset="1"    stop-color="#ddd5c4"/>
+        </linearGradient>
+        <pattern id="weave" width="13.5" height="12" patternUnits="userSpaceOnUse">
+          <rect width="13.5" height="12" fill="#d5cdbc"/>
+          <g fill="#cac2b0">
+            <rect x="1.1"   y="1.2" width="10.2" height="5" rx="2.5"/>
+            <rect x="-5.65" y="7.2" width="10.2" height="5" rx="2.5"/>
+            <rect x="7.85"  y="7.2" width="10.2" height="5" rx="2.5"/>
+          </g>
+          <g fill="url(#bead)">
+            <rect x="0.7"   y="0.5" width="10.2" height="5" rx="2.5"/>
+            <rect x="-6.05" y="6.5" width="10.2" height="5" rx="2.5"/>
+            <rect x="7.45"  y="6.5" width="10.2" height="5" rx="2.5"/>
+          </g>
+        </pattern>
+
+        <!-- Ambient glow -->
+        <radialGradient id="ambient">
+          <stop offset="0" stop-color="#6d5c45" stop-opacity="0.12"/>
+          <stop offset="1" stop-color="#6d5c45" stop-opacity="0"/>
+        </radialGradient>
+
+        <!-- Needle: metallic steel gradient in local needle space -->
+        <linearGradient id="steel" gradientUnits="userSpaceOnUse" x1="0" y1="-5.6" x2="0" y2="5.6">
+          <stop offset="0"    stop-color="#a9aaac"/>
+          <stop offset="0.16" stop-color="#fafcff"/>
+          <stop offset="0.3"  stop-color="#dfe2e6"/>
+          <stop offset="0.45" stop-color="#b6babe"/>
+          <stop offset="0.62" stop-color="#949a9e"/>
+          <stop offset="0.82" stop-color="#6f7378"/>
+          <stop offset="1"    stop-color="#505249"/>
+        </linearGradient>
+
+        <!-- Blur passes -->
+        <filter id="blurS" x="-60%" y="-200%" width="220%" height="500%">
+          <feGaussianBlur stdDeviation="2.1"/>
+        </filter>
+        <filter id="blurM" x="-60%" y="-200%" width="220%" height="500%">
+          <feGaussianBlur stdDeviation="4.6"/>
+        </filter>
+
+        <!-- Stitches fade to the left -->
+        <linearGradient id="fadeG" gradientUnits="userSpaceOnUse" x1="20" y1="0" x2="442" y2="0">
+          <stop offset="0"   stop-color="#000"/>
+          <stop offset="0.3" stop-color="#777"/>
+          <stop offset="0.6" stop-color="#bbb"/>
+          <stop offset="1"   stop-color="#fff"/>
+        </linearGradient>
+        <mask id="fade" maskUnits="userSpaceOnUse" x="-3000" y="240" width="3480" height="160">
+          <rect x="-3000" y="240" width="3480" height="160" fill="url(#fadeG)"/>
+        </mask>
+
+        <!-- Slot mask: hides needle between the two holes while it's under the cloth -->
+        <mask id="slot" maskUnits="userSpaceOnUse" x="0" y="110" width="1000" height="260">
+          <rect x="0" y="110" width="1000" height="260" fill="#fff"/>
+          <rect id="slot-rect" x="0" y="110" width="0" height="260" fill="#000"/>
+        </mask>
+
+        <!-- Paths rewritten every frame -->
+        <path id="d-dashes"/>
+        <path id="d-lay"/>
+        <path id="d-air"/>
+        <path id="d-tail"/>
+
+        <!-- Needle silhouette in local space (origin = butt) -->
+        <path id="d-needle"
+              d="M0,-5.6 A5.6,5.6 0 0 0 0,5.6 L186,5.6 Q268,4.2 310,0.35 Q268,-4.2 186,-5.6 Z"/>
+      </defs>
+
+      <!-- ── Scene ── -->
+      <g id="world">
+
+        <!-- Cloth -->
+        <rect id="fabric" fill="url(#weave)"/>
+        <ellipse cx="430" cy="316" rx="330" ry="120" fill="url(#ambient)"/>
+
+        <!-- Completed stitches + stitch being pulled flat; fade left -->
+        <g mask="url(#fade)">
+          <g opacity="0.28" filter="url(#blurS)" transform="translate(1.6,3.2)">
+            <use href="#d-dashes" fill="none" stroke="#6d5c45" stroke-width="12" stroke-linecap="round"/>
+            <use href="#d-lay"    fill="none" stroke="#6d5c45" stroke-width="12" stroke-linecap="round"/>
+          </g>
+          <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <use href="#d-dashes" stroke="#7b421f" stroke-width="11"/>
+            <use href="#d-dashes" stroke="#9d5c31" stroke-width="9.4"  transform="translate(0,-0.5)"/>
+            <use href="#d-dashes" stroke="#b87b53" stroke-width="5.2"  transform="translate(0,-2.1)" opacity="0.95"/>
+            <use href="#d-dashes" stroke="#d2a47c" stroke-width="2"    transform="translate(0,-3.2)" opacity="0.5"/>
+            <use href="#d-lay"    stroke="#7b421f" stroke-width="11"/>
+            <use href="#d-lay"    stroke="#9d5c31" stroke-width="9.4"  transform="translate(0,-0.5)"/>
+            <use href="#d-lay"    stroke="#b87b53" stroke-width="5.2"  transform="translate(0,-2.1)" opacity="0.95"/>
+            <use href="#d-lay"    stroke="#d2a47c" stroke-width="2"    transform="translate(0,-3.2)" opacity="0.5"/>
+          </g>
+        </g>
+
+        <!-- Shadow layer: needle + working thread, projected flat and blurred -->
+        <g id="shadows" opacity="0.3" filter="url(#blurM)">
+          <use id="needle-shadow" href="#d-needle" fill="#6d5c45"/>
+          <use href="#d-air"  fill="none" stroke="#6d5c45" stroke-width="12" stroke-linecap="round"/>
+          <use href="#d-tail" fill="none" stroke="#6d5c45" stroke-width="12" stroke-linecap="round"/>
+        </g>
+
+        <!-- Needle: masked while passing under the cloth -->
+        <g mask="url(#slot)">
+          <g id="needle-inner">
+            <use href="#d-needle" fill="url(#steel)"/>
+            <path d="M9,-3.5 L182,-3.5"  stroke="#fff" stroke-width="1.2" stroke-linecap="round" opacity="0.45"/>
+            <path d="M188,-3.1 L296,-0.7" stroke="#fff" stroke-width="0.9" stroke-linecap="round" opacity="0.28"/>
+            <rect x="20"   y="-2.4" width="29" height="4.8" rx="2.4" fill="#5f6166"/>
+            <rect x="23.5" y="-1.5" width="22" height="3"   rx="1.5" fill="#9d5c31"/>
+            <rect x="20"   y="-2.4" width="29" height="4.8" rx="2.4" fill="none"
+                  stroke="#eef0f2" stroke-width="0.8" opacity="0.65"/>
+          </g>
+        </g>
+
+        <!-- Working thread (renders over needle) -->
+        <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <use href="#d-air"  stroke="#7b421f" stroke-width="11"/>
+          <use href="#d-air"  stroke="#9d5c31" stroke-width="9.4"  transform="translate(0,-0.5)"/>
+          <use href="#d-air"  stroke="#b87b53" stroke-width="5.2"  transform="translate(0,-2.1)" opacity="0.95"/>
+          <use href="#d-air"  stroke="#d2a47c" stroke-width="2"    transform="translate(0,-3.2)" opacity="0.5"/>
+          <use href="#d-tail" stroke="#7b421f" stroke-width="11"/>
+          <use href="#d-tail" stroke="#9d5c31" stroke-width="9.4"  transform="translate(0,-0.5)"/>
+          <use href="#d-tail" stroke="#b87b53" stroke-width="5.2"  transform="translate(0,-2.1)" opacity="0.95"/>
+          <use href="#d-tail" stroke="#d2a47c" stroke-width="2"    transform="translate(0,-3.2)" opacity="0.5"/>
+        </g>
+
+      </g>
+    </svg>
+  </div>
+
+  <script>
+    /* ── Scene constants (measured from reference animation 960×540) ── */
+    const SW=960, SH=540, YF=314;
+    const PITCH=108, DASH=78, ANCHOR=394;
+    const HOLE_A=ANCHOR+DASH, HOLE_B=HOLE_A+32;
+    const EYE_OFF=33, FRAMES=108, PERIOD=1800;
+    const DEG=Math.PI/180;
+
+    /* ── Keyframe data ── */
+    const NEEDLE_KEYS=[
+      [0,12.0,150,229],[6,15.3,177,232],[12,16.2,184,232],[18,15.3,184,237],
+      [22,10.8,178,260],[26,4.6,184,291],[30,1.0,194,309],[34,0.5,200,312],
+      [38,0.5,224,312],[42,0.4,280,313],[46,0.3,344,313],[50,0.15,416,314],
+      [54,0.0,470,314],[57,0.0,498,313],[60,-8.7,508,306],[64,-16.3,527,293],
+      [68,-18.3,551,284],[76,-18.6,535,283],[84,-19.5,511,279],[88,-18.0,471,278],
+      [92,-12.8,388,271],[96,-4.6,280,257],[100,4.0,198,241],[104,10.0,160,231],
+      [108,12.0,150,229],
+    ];
+    const AIR_BOW=[
+      [0,-7],[10,-9],[18,-3],[24,9],[30,19],[36,20],[42,18],[46,11],[50,3],
+      [56,-1],[62,-2],[80,-2.5],[96,-4],[108,-7],
+    ];
+    const LAY_BOW=[
+      [0,0],[40,9],[46,11],[52,10],[58,8],[62,7],[72,6],[86,4.4],[100,3.4],[108,3.1],
+    ];
+    const TAIL_FALL=[
+      [0,-18],[10,-17],[18,-7],[24,1],[30,-6],[40,-10],[50,-7],[56,12],[62,34],
+      [68,43],[80,44],[90,30],[100,-8],[108,-18],
+    ];
+
+    /* ── Monotone cubic spline resampler ── */
+    function resample(keys,col){
+      const n=keys.length;
+      const xs=keys.map(k=>k[0]),ys=keys.map(k=>k[col]);
+      const d=new Array(n-1);
+      for(let i=0;i<n-1;i++) d[i]=(ys[i+1]-ys[i])/(xs[i+1]-xs[i]);
+      const m=new Array(n);
+      m[0]=d[0]; m[n-1]=d[n-2];
+      for(let i=1;i<n-1;i++) m[i]=d[i-1]*d[i]<=0?0:(d[i-1]+d[i])/2;
+      for(let i=0;i<n-1;i++){
+        if(d[i]===0){m[i]=m[i+1]=0;continue;}
+        const a=m[i]/d[i],b=m[i+1]/d[i],s=a*a+b*b;
+        if(s>9){const t=3/Math.sqrt(s);m[i]=t*a*d[i];m[i+1]=t*b*d[i];}
+      }
+      const out=new Float64Array(FRAMES+1);
+      let k=0;
+      for(let f=0;f<=FRAMES;f++){
+        while(k<n-2&&xs[k+1]<f)k++;
+        const h=xs[k+1]-xs[k],u=(f-xs[k])/h,u2=u*u,u3=u2*u;
+        out[f]=(2*u3-3*u2+1)*ys[k]+(u3-2*u2+u)*h*m[k]+
+               (-2*u3+3*u2)*ys[k+1]+(u3-u2)*h*m[k+1];
+      }
+      return out;
+    }
+
+    const T={
+      ang:  resample(NEEDLE_KEYS,1),
+      bx:   resample(NEEDLE_KEYS,2),
+      by:   resample(NEEDLE_KEYS,3),
+      air:  resample(AIR_BOW,1),
+      lay:  resample(LAY_BOW,1),
+      tail: resample(TAIL_FALL,1),
+    };
+
+    const at    =(tbl,f)=>{const i=f|0;return tbl[i]+(tbl[i+1]-tbl[i])*(f-i);};
+    const clamp =(v,a,b)=>v<a?a:v>b?b:v;
+    const smooth=e=>e*e*e*(e*(e*6-15)+10);
+    const r2    =v=>Math.round(v*100)/100;
+
+    function bowed(x0,y0,x1,y1,h){
+      const dx=x1-x0,dy=y1-y0,len=Math.sqrt(dx*dx+dy*dy)||1;
+      const k=(2*h*Math.min(1,len/70))/len;
+      return"M"+r2(x0)+","+r2(y0)+"Q"+r2((x0+x1)/2+dy*k)+","+r2((y0+y1)/2-dx*k)+" "+r2(x1)+","+r2(y1);
+    }
+
+    /* ── DOM refs ── */
+    const svg        =document.getElementById('svg');
+    const world      =document.getElementById('world');
+    const fabric     =document.getElementById('fabric');
+    const slotRect   =document.getElementById('slot-rect');
+    const dashes     =document.getElementById('d-dashes');
+    const layEl      =document.getElementById('d-lay');
+    const airEl      =document.getElementById('d-air');
+    const tailEl     =document.getElementById('d-tail');
+    const needleInner=document.getElementById('needle-inner');
+    const needleShadow=document.getElementById('needle-shadow');
+    const shadows    =document.getElementById('shadows');
+
+    let raf=0,prev=0,clock=0,dirty=true,dashKey=NaN;
+
+    function layout(){
+      dirty=false;
+      const w=svg.clientWidth||1, h=svg.clientHeight||1;
+      const scale=Math.max(0.3,Math.min(w/900,h/470));
+      svg.setAttribute('viewBox','0 0 '+w+' '+h);
+      world.setAttribute('transform',
+        'translate('+r2(w/2-(SW/2)*scale)+','+r2(h/2-(SH/2)*scale)+
+        ') scale('+r2(scale)+')');
+      const fx=-(w/2-(SW/2)*scale)/scale-10;
+      const fy=-(h/2-(SH/2)*scale)/scale-10;
+      fabric.setAttribute('x',r2(fx));
+      fabric.setAttribute('y',r2(fy));
+      fabric.setAttribute('width', r2(w/scale+20));
+      fabric.setAttribute('height',r2(h/scale+20));
+    }
+
+    function draw(f){
+      const scroll=-PITCH*smooth(clamp((f-64)/38,0,1));
+      const ang=at(T.ang,f),bx=at(T.bx,f),by=at(T.by,f);
+      const rad=ang*DEG,cs=Math.cos(rad),sn=Math.sin(rad);
+      const ex=bx+cs*EYE_OFF, ey=by+sn*EYE_OFF;
+      const base=ANCHOR+scroll, holeA=HOLE_A+scroll, holeB=HOLE_B+scroll;
+
+      /* Completed stitch dashes (only recomputed when scroll changes) */
+      const key=Math.round(scroll*4);
+      if(key!==dashKey){
+        dashKey=key;
+        let d='';
+        for(let k=1;k<=6;k++){
+          const x0=ANCHOR-k*PITCH+scroll;
+          d+=bowed(x0,YF,x0+DASH,YF,k===1?2.4:k===2?1.1:0.5)+' ';
+        }
+        dashes.setAttribute('d',d);
+      }
+
+      /* Stitch being pulled flat */
+      const pulled=f>=57;
+      const layEnd=pulled?holeA:clamp(ex,base,holeA);
+      layEl.setAttribute('d',layEnd>base+0.5?bowed(base,YF,layEnd,YF,at(T.lay,f)):'');
+
+      /* Airborne thread arc */
+      const u=pulled?1:clamp((ex-holeA)/34,0,1);
+      airEl.setAttribute('d',bowed(layEnd+u*(holeB-layEnd),YF,ex,ey,at(T.air,f)));
+
+      /* Loose tail through the eye */
+      const fall=at(T.tail,f), back=14*(f>30&&f<58?0.6:1);
+      tailEl.setAttribute('d',
+        'M'+r2(ex)+','+r2(ey)+
+        'C'+r2(ex-cs*back*0.9)+','+r2(ey-sn*back*0.9+fall*0.18)+
+        ' '+r2(ex-cs*back*0.7)+','+r2(ey-sn*back*0.7+fall*0.72)+
+        ' '+r2(ex-cs*back*0.15-fall*0.1)+','+r2(ey-sn*back*0.15+fall));
+
+      /* Slot mask: hide needle between the two holes */
+      slotRect.setAttribute('x',r2(holeA));
+      slotRect.setAttribute('width',f>20&&f<60?r2(holeB-holeA):'0');
+
+      /* Needle transform */
+      const tr='translate('+r2(bx)+','+r2(by)+') rotate('+r2(ang)+')';
+      needleInner.setAttribute('transform',tr);
+      needleShadow.setAttribute('transform',tr);
+
+      /* Shadow projection: flatten onto cloth and fade by lift height */
+      const lift=clamp(YF-Math.min(by,ey),0,140);
+      shadows.setAttribute('transform',
+        'translate('+r2(10+lift*0.1)+','+r2(YF*0.74+5)+') scale(1,0.26)');
+      shadows.setAttribute('opacity',r2(0.32-lift*0.0012));
+    }
+
+    function frame(now){
+      raf=requestAnimationFrame(frame);
+      if(dirty)layout();
+      if(prev)clock=(clock+(now-prev))%PERIOD;
+      prev=now;
+      draw((clock/PERIOD)*FRAMES);
+    }
+
+    /* Pause when tab hidden or off-screen */
+    let onScreen=true, paused=false;
+    const reduce=window.matchMedia('(prefers-reduced-motion:reduce)');
+    function sync(){
+      const should=onScreen&&!document.hidden&&!paused&&!reduce.matches;
+      if(should&&!raf){prev=0;raf=requestAnimationFrame(frame);}
+      else if(!should&&raf){cancelAnimationFrame(raf);raf=0;layout();draw((clock/PERIOD)*FRAMES);}
+    }
+    document.addEventListener('visibilitychange',sync);
+    if(reduce.addEventListener)reduce.addEventListener('change',sync);
+
+    new IntersectionObserver(e=>{onScreen=e[e.length-1].isIntersecting;sync();},{threshold:0})
+      .observe(document.getElementById('loader'));
+    new ResizeObserver(()=>{dirty=true;})
+      .observe(document.getElementById('loader'));
+
+    layout();
+    draw(0);
+    raf=requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
