@@ -4,9 +4,11 @@ A hand-sewing simulation built entirely with vanilla JavaScript and SVG — no c
 
 **[▶ View live demo](https://josepabellana.github.io/JS-needle-animation/)**
 
----
+> The animation is JavaScript-driven and can't be embedded as a static image.
+> **[Open the live demo](https://josepabellana.github.io/JS-needle-animation/)** to see it run.
+> *(Enable GitHub Pages first — see the section at the bottom.)*
 
-![needle animation preview](https://josepabellana.github.io/JS-needle-animation/index.html)
+---
 
 ## What it does
 
